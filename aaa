@@ -1,0 +1,48 @@
+sudo tee /usr/local/bin/update_usom_txt.sh > /dev/null <<'EOF'
+#!/bin/bash
+set -e
+
+OUTDIR=/etc/mail/spamassassin/usom_rules
+USOM_TXT="https://www.usom.gov.tr/url-list.txt"
+TMP=/tmp/usom_txt_update
+
+mkdir -p "$TMP"
+mkdir -p "$OUTDIR"
+chown root:root "$OUTDIR"
+chmod 755 "$OUTDIR"
+
+echo "[*] USOM TXT listesi indiriliyor..."
+curl -sS "$USOM_TXT" -o "$TMP/usom.txt"
+
+echo "[*] Önceki USOM kural dosyaları temizleniyor..."
+rm -f "$OUTDIR/usom_*.cf"
+
+echo "[*] Kural dosyaları oluşturuluyor..."
+while read -r url; do
+    [[ "$url" =~ ^#.*$ ]] && continue
+    [[ -z "$url" ]] && continue
+
+    domain=$(echo "$url" | sed -E 's#https?://([^/]+)/?.*#\1#')
+    hash=$(echo -n "$url" | md5sum | awk '{print $1}')
+    
+    cat > "$OUTDIR/usom_${hash}.cf" <<CF
+body LOCAL_USOM_${hash} /https?:\/\/[^\s]*\b${domain}\b[^\s]*/i
+describe LOCAL_USOM_${hash} USOM zararlı bağlantı: ${domain}
+score LOCAL_USOM_${hash} 100.0
+CF
+done < "$TMP/usom.txt"
+
+chmod -R 644 "$OUTDIR"
+
+echo "[*] PMG servisleri yeniden başlatılıyor..."
+systemctl restart pmg-smtp-filter
+systemctl restart pmg-smtp
+
+echo "[*] Güncelleme tamamlandı. $(ls $OUTDIR | wc -l) kural dosyası oluşturuldu."
+EOF
+
+# Çalıştırılabilir yap
+chmod +x /usr/local/bin/update_usom_txt.sh
+
+# Scripti çalıştır
+/usr/local/bin/update_usom_txt.sh
