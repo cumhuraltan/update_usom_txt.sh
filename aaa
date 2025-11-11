@@ -35,9 +35,10 @@ done < "$TMP/usom.txt"
 chmod -R 644 "$OUTDIR"
 
 echo "[*] PMG servisleri yeniden başlatılıyor..."
-systemctl restart pmg-smtp-filter
-systemctl restart pmg-smtp
-
+systemctl restart pmg-smtp-filter.service
+systemctl restart pmgpolicy.service
+systemctl restart pmgproxy.service
+pmgconfig  sync
 echo "[*] Güncelleme tamamlandı. $(ls $OUTDIR | wc -l) kural dosyası oluşturuldu."
 EOF
 
